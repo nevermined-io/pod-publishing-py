@@ -72,10 +72,9 @@ def run(args):
             )
             index += 1
 
-    # TODO: Use S3
     # create bucket
     minio_client = Minio(
-        "172.17.0.2:31404",
+        "argo-artifacts.default:9000",
         access_key="AKIAIOSFODNN7EXAMPLE",
         secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         secure=False,
@@ -110,7 +109,7 @@ def run(args):
     ddo = nevermined.assets.create(
         metadata,
         account,
-        providers=[Web3.toChecksumAddress(args.credentials["address"])],
+        providers=[account.address],
         authorization_type="SecretStore",
     )
     logging.info(f"Publishing {ddo.did}")
