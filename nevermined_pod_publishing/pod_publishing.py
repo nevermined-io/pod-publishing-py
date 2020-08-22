@@ -60,7 +60,7 @@ def run(args):
     index = 0
     for f in outputs_path.rglob("*"):
         if f.is_file():
-            renamed_file = Path(f.parent) / f"{uuid.uuid4()}-{f.name}"
+            renamed_file = Path(f.parent) / f.name
             f.rename(renamed_file)
             files.append(
                 {
