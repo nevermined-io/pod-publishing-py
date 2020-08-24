@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+import time
 
 from minio import Minio
 from nevermined_sdk_py import Config, Nevermined
@@ -59,7 +60,7 @@ def run(args):
     index = 0
     for f in outputs_path.rglob("*"):
         if f.is_file():
-            renamed_file = Path(f.parent) / f"{uuid.uuid4()}-{f.name}"
+            renamed_file = Path(f.parent) / f.name
             f.rename(renamed_file)
             files.append(
                 {
@@ -90,6 +91,7 @@ def run(args):
 
         del f["path"]
         f["url"] = minio_client.presigned_get_object(bucket_name, f["name"])
+        logging.info(f"File url {f['url']}")
 
     # Create ddo
     publishing_date = datetime.utcnow().isoformat(timespec="seconds") + "Z"
@@ -106,12 +108,22 @@ def run(args):
         }
     }
 
-    ddo = nevermined.assets.create(
-        metadata,
-        account,
-        providers=[account.address],
-        authorization_type="SecretStore",
-    )
+    ddo = None
+    retry = 0
+    while ddo is None:
+        try:
+            ddo = nevermined.assets.create(
+                metadata,
+                account,
+                providers=[account.address],
+                # authorization_type="SecretStore",
+            )
+        except ValueError:
+            if retry == 3:
+                raise
+            logging.info("retrying creation of asset")
+            retry += 1
+            time.sleep(30)
     logging.info(f"Publishing {ddo.did}")
     logging.debug(f"Publishing ddo: {ddo}")
 
@@ -140,7 +152,7 @@ def main():
     args = parser.parse_args()
 
     # setup logging
-    level = logging.DEBUG if args.verbose else logging.DEBUG
+    level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
         level=level,
         format="[%(asctime)s] [%(levelname)s] (%(name)s) %(message)s",

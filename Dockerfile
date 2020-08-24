@@ -15,5 +15,6 @@ COPY . /nevermined-pod-publishing
 WORKDIR /nevermined-pod-publishing
 
 RUN pip install .
+RUN pip install contracts-lib-py==0.4.0
 
 ENTRYPOINT pod-publishing --help
