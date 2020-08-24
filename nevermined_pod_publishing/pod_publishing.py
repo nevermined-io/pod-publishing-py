@@ -109,6 +109,7 @@ def run(args):
     }
 
     ddo = None
+    retry = 0
     while ddo is None:
         try:
             ddo = nevermined.assets.create(
@@ -118,8 +119,11 @@ def run(args):
                 # authorization_type="SecretStore",
             )
         except ValueError:
+            if retry == 3:
+                raise
             logging.info("retrying creation of asset")
-            time.sleep(10)
+            retry += 1
+            time.sleep(30)
     logging.info(f"Publishing {ddo.did}")
     logging.debug(f"Publishing ddo: {ddo}")
 
