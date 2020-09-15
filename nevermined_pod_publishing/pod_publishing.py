@@ -94,7 +94,7 @@ def run(args):
 
     # create bucket
     minio_client = Minio(
-        "argo-artifacts.default:9000",
+        "172.17.0.1:8060",
         access_key="AKIAIOSFODNN7EXAMPLE",
         secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         secure=False,
@@ -111,12 +111,7 @@ def run(args):
         logging.info(f"Uploaded file {f['path']}")
 
         del f["path"]
-        # TODO: Since the hostname and port for minio is different inside minikube
-        # and in the host machine the presigned urls don't work outside minikube.
-        # For now we are just going to hardcode the host address and port
-        # f["url"] = minio_client.presigned_get_object(bucket_name, f["name"])
-
-        f["url"] = f"http://172.17.0.2:30482/{bucket_name}/{f['name']}"
+        f["url"] = minio_client.presigned_get_object(bucket_name, f["name"])
         logging.info(f"File url {f['url']}")
 
     # Create ddo
@@ -142,7 +137,6 @@ def run(args):
                 metadata,
                 account,
                 providers=[account.address],
-                # authorization_type="SecretStore",
             )
         except ValueError:
             if retry == 3:
