@@ -1,3 +1,4 @@
+import os
 import argparse
 import json
 import logging
@@ -123,7 +124,10 @@ def run(args):
             "author": "pod-publishing",
             "license": "No License Specified",
             "price": "1",
-            "metadata": workflow.metadata,
+            "metadata": {
+                "workflow": workflow.metadata,
+                "executionId": os.getenv("EXECUTION_ID")
+            },
             "files": files,
             "type": "dataset",
         }
