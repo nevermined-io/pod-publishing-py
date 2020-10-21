@@ -144,7 +144,7 @@ def run(args):
         except ValueError:
             if retry == 3:
                 raise
-            logging.info("retrying creation of asset")
+            logging.warning("retrying creation of asset")
             retry += 1
             time.sleep(30)
     logging.info(f"Publishing {ddo.did}")
@@ -152,7 +152,18 @@ def run(args):
 
     # transfer ownership to the owner of the workflow
     workflow_owner = nevermined.assets.owner(workflow.did)
-    nevermined.assets.transfer_ownership(ddo.did, workflow_owner, account)
+    retry = 0
+    while True:
+        try:
+            nevermined.assets.transfer_ownership(ddo.did, workflow_owner, account)
+        except ValueError:
+            if retry == 3:
+                raise
+            logging.warning("retrying transfer of ownership")
+            retry += 1
+            time.sleep(30)
+        else:
+            break
     logging.info(
         f"Transfered ownership of {workflow.did} from {account.address} to {workflow_owner}"
     )
