@@ -1,8 +1,8 @@
-import os
 import argparse
 import json
 import logging
 import mimetypes
+import os
 import time
 import uuid
 from datetime import datetime
@@ -126,21 +126,20 @@ def run(args):
             "price": "1",
             "metadata": {
                 "workflow": workflow.metadata,
-                "executionId": os.getenv("EXECUTION_ID")
+                "executionId": os.getenv("EXECUTION_ID"),
             },
             "files": files,
             "type": "dataset",
         }
     }
 
+    # publish the ddo
     ddo = None
     retry = 0
     while ddo is None:
         try:
             ddo = nevermined.assets.create(
-                metadata,
-                account,
-                providers=[account.address],
+                metadata, account, providers=[account.address],
             )
         except ValueError:
             if retry == 3:
@@ -150,6 +149,13 @@ def run(args):
             time.sleep(30)
     logging.info(f"Publishing {ddo.did}")
     logging.debug(f"Publishing ddo: {ddo}")
+
+    # transfer ownership to the owner of the workflow
+    workflow_owner = nevermined.assets.owner(workflow.did)
+    nevermined.assets.transfer_ownership(ddo.did, workflow_owner, account)
+    logging.info(
+        f"Transfered ownership of {workflow.did} from {account.address} to {workflow_owner}"
+    )
 
 
 def main():
