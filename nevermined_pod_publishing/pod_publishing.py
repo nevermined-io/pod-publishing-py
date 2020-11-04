@@ -99,7 +99,7 @@ def run(args):
             "datePublished": publishing_date,
             "author": "pod-publishing",
             "license": "No License Specified",
-            "price": "1",
+            "price": "0",
             "metadata": workflow.metadata,
             "files": files,
             "type": "dataset",
@@ -110,7 +110,7 @@ def run(args):
         metadata,
         account,
         providers=[account.address],
-        authorization_type="SecretStore",
+        authorization_type="PSK-RSA",
     )
     logging.info(f"Publishing {ddo.did}")
     logging.debug(f"Publishing ddo: {ddo}")
