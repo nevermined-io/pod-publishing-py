@@ -2,6 +2,8 @@ import argparse
 import json
 import logging
 import mimetypes
+import os
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -13,8 +15,29 @@ from nevermined_sdk_py.nevermined.accounts import Account
 from web3 import Web3
 
 
+def s3_readonly_policy(bucket_name):
+    policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {"AWS": ["*"]},
+                "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
+                "Resource": [f"arn:aws:s3:::{bucket_name}"],
+            },
+            {
+                "Effect": "Allow",
+                "Principal": {"AWS": ["*"]},
+                "Action": ["s3:GetObject"],
+                "Resource": [f"arn:aws:s3:::{bucket_name}/*"],
+            },
+        ],
+    }
+    return json.dumps(policy)
+
+
 def run(args):
-    logging.debug(f"script callef with args: {args}")
+    logging.debug(f"script called with args: {args}")
 
     # setup config
     options = {
@@ -59,22 +82,20 @@ def run(args):
     index = 0
     for f in outputs_path.rglob("*"):
         if f.is_file():
-            renamed_file = Path(f.parent) / f"{uuid.uuid4()}-{f.name}"
-            f.rename(renamed_file)
             files.append(
                 {
                     "index": index,
-                    "name": renamed_file.name,
-                    "path": renamed_file.as_posix(),
-                    "contentType": mimetypes.guess_type(renamed_file)[0],
-                    "contentLength": renamed_file.stat().st_size,
+                    "name": f.name,
+                    "path": f.as_posix(),
+                    "contentType": mimetypes.guess_type(f)[0],
+                    "contentLength": f.stat().st_size,
                 }
             )
             index += 1
 
     # create bucket
     minio_client = Minio(
-        "argo-artifacts.default:9000",
+        "172.17.0.1:8060",
         access_key="AKIAIOSFODNN7EXAMPLE",
         secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         secure=False,
@@ -82,6 +103,8 @@ def run(args):
     bucket_name = f"pod-publishing-{str(uuid.uuid4())}"
     minio_client.make_bucket(bucket_name, location="eu-central-1")
     logging.info(f"Created bucket {bucket_name}")
+    minio_client.set_bucket_policy(bucket_name, s3_readonly_policy(bucket_name))
+    logging.info(f"Set bucket {bucket_name} policy to READ_ONLY")
 
     # upload files
     for f in files:
@@ -90,6 +113,7 @@ def run(args):
 
         del f["path"]
         f["url"] = minio_client.presigned_get_object(bucket_name, f["name"])
+        logging.info(f"File url {f['url']}")
 
     # Create ddo
     publishing_date = datetime.utcnow().isoformat(timespec="seconds") + "Z"
@@ -99,21 +123,50 @@ def run(args):
             "datePublished": publishing_date,
             "author": "pod-publishing",
             "license": "No License Specified",
-            "price": "0",
-            "metadata": workflow.metadata,
+            "price": "1",
+            "metadata": {
+                "workflow": workflow.metadata,
+                "executionId": os.getenv("EXECUTION_ID"),
+            },
             "files": files,
             "type": "dataset",
         }
     }
 
-    ddo = nevermined.assets.create(
-        metadata,
-        account,
-        providers=[account.address],
-        authorization_type="PSK-RSA",
-    )
+    # publish the ddo
+    ddo = None
+    retry = 0
+    while ddo is None:
+        try:
+            ddo = nevermined.assets.create(
+                metadata, account, providers=[account.address],
+            )
+        except ValueError:
+            if retry == 3:
+                raise
+            logging.warning("retrying creation of asset")
+            retry += 1
+            time.sleep(30)
     logging.info(f"Publishing {ddo.did}")
     logging.debug(f"Publishing ddo: {ddo}")
+
+    # transfer ownership to the owner of the workflow
+    workflow_owner = nevermined.assets.owner(workflow.did)
+    retry = 0
+    while True:
+        try:
+            nevermined.assets.transfer_ownership(ddo.did, workflow_owner, account)
+        except ValueError:
+            if retry == 3:
+                raise
+            logging.warning("retrying transfer of ownership")
+            retry += 1
+            time.sleep(30)
+        else:
+            break
+    logging.info(
+        f"Transfered ownership of {workflow.did} from {account.address} to {workflow_owner}"
+    )
 
 
 def main():
@@ -140,7 +193,7 @@ def main():
     args = parser.parse_args()
 
     # setup logging
-    level = logging.DEBUG if args.verbose else logging.DEBUG
+    level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(
         level=level,
         format="[%(asctime)s] [%(levelname)s] (%(name)s) %(message)s",
