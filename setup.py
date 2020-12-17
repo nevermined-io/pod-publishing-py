@@ -9,7 +9,7 @@ with open("README.md") as readme_file:
     readme = readme_file.read()
 
 install_requirements = [
-    "nevermined-sdk-py==0.4.0",
+    "nevermined-sdk-py==0.6.0",
     "web3==5.9.0",
     "minio==6.0.0",
 ]

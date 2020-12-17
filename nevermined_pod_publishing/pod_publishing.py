@@ -12,7 +12,9 @@ from tempfile import NamedTemporaryFile
 from minio import Minio
 from nevermined_sdk_py import Config, Nevermined
 from nevermined_sdk_py.nevermined.accounts import Account
+from contracts_lib_py.utils import add_ethereum_prefix_and_hash_msg
 from web3 import Web3
+from common_utils_py.did import convert_to_bytes, DID
 
 
 def s3_readonly_policy(bucket_name):
@@ -77,6 +79,8 @@ def run(args):
     logging.info(f"resolved workflow {args.workflow}")
     logging.debug(f"workflow ddo {workflow.as_dictionary()}")
 
+    workflow_owner = nevermined.assets.owner(workflow.did)
+    provenance_id = DID.did(workflow.did)
     # get files to upload
     files = []
     index = 0
@@ -105,6 +109,14 @@ def run(args):
     logging.info(f"Created bucket {bucket_name}")
     minio_client.set_bucket_policy(bucket_name, s3_readonly_policy(bucket_name))
     logging.info(f"Set bucket {bucket_name} policy to READ_ONLY")
+    nevermined.provenance.used(provenance_id=convert_to_bytes(provenance_id),
+                               did=convert_to_bytes(workflow.did),
+                               agent_id=convert_to_bytes(workflow_owner.address),
+                               activity_id=convert_to_bytes(nevermined._web3.keccak(text='compute')),
+                               signature=nevermined.keeper.sign_hash(add_ethereum_prefix_and_hash_msg(provenance_id), account=account),
+                               account=account,
+                               attributes='compute'
+                               )
 
     # upload files
     for f in files:
@@ -141,6 +153,13 @@ def run(args):
             ddo = nevermined.assets.create(
                 metadata, account, providers=[account.address],
             )
+            nevermined.provenance.was_derived_from(provenance_id=convert_to_bytes(provenance_id),
+                                                   new_entity_did=convert_to_bytes(ddo.did),
+                                                   used_entity_did=convert_to_bytes(workflow.did),
+                                                   agent_id=convert_to_bytes(workflow_owner.address),
+                                                   activity_id=convert_to_bytes(nevermined._web3.keccak(text='published')),
+                                                   account=account,
+                                                   attributes='published')
         except ValueError:
             if retry == 3:
                 raise
@@ -151,11 +170,16 @@ def run(args):
     logging.debug(f"Publishing ddo: {ddo}")
 
     # transfer ownership to the owner of the workflow
-    workflow_owner = nevermined.assets.owner(workflow.did)
     retry = 0
     while True:
         try:
             nevermined.assets.transfer_ownership(ddo.did, workflow_owner, account)
+            nevermined.provenance.was_associated_with(provenance_id=convert_to_bytes(provenance_id),
+                                                      did=workflow.did,
+                                                      agent_id=workflow_owner.address,
+                                                      activity_id=convert_to_bytes(nevermined._web3.keccak(text='transferOwnership')),
+                                                      account=account,
+                                                      attributes='transferOwnership')
         except ValueError:
             if retry == 3:
                 raise
