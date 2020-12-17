@@ -12,6 +12,7 @@ from tempfile import NamedTemporaryFile
 from minio import Minio
 from nevermined_sdk_py import Config, Nevermined
 from nevermined_sdk_py.nevermined.accounts import Account
+from contracts_lib_py.utils import add_ethereum_prefix_and_hash_msg
 from web3 import Web3
 from common_utils_py.did import convert_to_bytes, DID
 
@@ -112,7 +113,7 @@ def run(args):
                                did=convert_to_bytes(workflow.did),
                                agent_id=convert_to_bytes(workflow_owner.address),
                                activity_id=convert_to_bytes(nevermined._web3.keccak(text='compute')),
-                               signature=None,
+                               signature=nevermined.keeper.sign_hash(add_ethereum_prefix_and_hash_msg(provenance_id), account=account),
                                account=account,
                                attributes='compute'
                                )

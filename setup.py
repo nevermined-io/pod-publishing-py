@@ -10,7 +10,6 @@ with open("README.md") as readme_file:
 
 install_requirements = [
     "nevermined-sdk-py==0.6.0",
-    "common-utils-py==0.4.2",
     "web3==5.9.0",
     "minio==6.0.0",
 ]
