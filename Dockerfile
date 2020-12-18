@@ -10,6 +10,8 @@ RUN apt-get update \
 COPY . /nevermined-pod-publishing
 WORKDIR /nevermined-pod-publishing
 
+RUN pip install pip==20.2.4
+
 RUN pip install .
 
 ENTRYPOINT pod-publishing --help
