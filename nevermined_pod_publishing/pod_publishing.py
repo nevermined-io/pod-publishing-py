@@ -80,7 +80,8 @@ def run(args):
     logging.debug(f"workflow ddo {workflow.as_dictionary()}")
 
     workflow_owner = nevermined.assets.owner(workflow.did)
-    provenance_id = DID.did(workflow.proof["checksum"])
+    provenance_id = uuid.uuid4()
+
     # get files to upload
     files = []
     index = 0
@@ -109,11 +110,11 @@ def run(args):
     logging.info(f"Created bucket {bucket_name}")
     minio_client.set_bucket_policy(bucket_name, s3_readonly_policy(bucket_name))
     logging.info(f"Set bucket {bucket_name} policy to READ_ONLY")
-    nevermined.provenance.used(provenance_id=convert_to_bytes(provenance_id),
+    nevermined.provenance.used(provenance_id=Web3.toBytes(provenance_id.bytes),
                                did=convert_to_bytes(workflow.did),
                                agent_id=convert_to_bytes(workflow_owner),
                                activity_id=convert_to_bytes(nevermined._web3.keccak(text='compute')),
-                               signature=nevermined.keeper.sign_hash(add_ethereum_prefix_and_hash_msg(provenance_id), account=account),
+                               signature=nevermined.keeper.sign_hash(add_ethereum_prefix_and_hash_msg(str(provenance_id)), account=account),
                                account=account,
                                attributes='compute'
                                )
@@ -153,7 +154,7 @@ def run(args):
             ddo = nevermined.assets.create(
                 metadata, account, providers=[account.address],
             )
-            nevermined.provenance.was_derived_from(provenance_id=convert_to_bytes(provenance_id),
+            nevermined.provenance.was_derived_from(provenance_id=Web3.toBytes(provenance_id.bytes),
                                                    new_entity_did=convert_to_bytes(ddo.did),
                                                    used_entity_did=convert_to_bytes(workflow.did),
                                                    agent_id=convert_to_bytes(workflow_owner),
@@ -174,7 +175,7 @@ def run(args):
     while True:
         try:
             nevermined.assets.transfer_ownership(ddo.did, workflow_owner, account)
-            nevermined.provenance.was_associated_with(provenance_id=convert_to_bytes(provenance_id),
+            nevermined.provenance.was_associated_with(provenance_id=Web3.toBytes(provenance_id.bytes),
                                                       did=workflow.did,
                                                       agent_id=workflow_owner,
                                                       activity_id=convert_to_bytes(nevermined._web3.keccak(text='transferOwnership')),
